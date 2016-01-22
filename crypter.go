@@ -49,7 +49,7 @@ func encryptFile(file, key string)  {
     // If file size is greater than 32KB, make a byte buffer of 32KB
     // Otherwise, create a buffer of file size
     var buf []byte
-    if(size > 32768){
+    if(size > (4<<20)){
         buf = make([]byte, 32768)
     }else{
         buf = make([]byte, size)    
@@ -110,7 +110,7 @@ func decryptFile(file, key string)  {
     // If file size is greater than 32KB, make a byte buffer of 32KB
     // Otherwise, create a buffer of file size
     var buf []byte
-    if(size > 32768){
+    if(size > (4<<20)){
         buf = make([]byte, 32768)
     }else{
         buf = make([]byte, size)    
