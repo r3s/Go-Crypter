@@ -19,7 +19,7 @@ const salt = "qqH+KDE3J6VHw0oGO4ml50Wc3OEvF8 xIr_LPwEQlJ|c%zqknw1zTOmHHIbF"
 // maxBuffer , maximum amount of data read from a file once is 4MB
 const maxBuffer = 4 << 20
 
-// encryptFile encrypts a file, accepts 3 arguments
+// encryptFile : encrypts a file, accepts 3 arguments
 // src:  source file, dest: destination file, key: password for encryption
 func encryptFile(src, dest, key string) error {
 
@@ -95,7 +95,7 @@ func encryptFile(src, dest, key string) error {
 	return nil
 }
 
-// decryptFile decrypts a file, accepts 3 arguments
+// decryptFile : decrypts a file, accepts 3 arguments
 // src:  source file, dest: destination file, key: password for encryption
 func decryptFile(src, dest, key string) error {
 
@@ -195,16 +195,19 @@ func main() {
 
 	if choice == 'e' {
 		dest := src + ".enc"
+        fmt.Println("Encrypting...")
 		err := encryptFile(src, dest, key)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else if choice == 'd' {
 		dest := src + ".dec"
+        fmt.Println("Decrypting...")
 		err := decryptFile(src, dest, key)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-
+    
+    fmt.Println("Done.")
 }
