@@ -1,23 +1,27 @@
 package main
 
 import (
-	"bufio"
+	"fmt"
+	"io"
+	"log"
+	"os"
+
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
-	"fmt"
+
 	"golang.org/x/crypto/pbkdf2"
-	"io"
-	"os"
 )
 
 const salt = "qqH+KDE3J6VHw0oGO4ml50Wc3OEvF8 xIr_LPwEQlJ|c%zqknw1zTOmHHIbF"
 
-// Function to encrypt a file
-func encryptFile(file, key string) {
+// maxBuffer , maximum amount of data read from a file once is 4MB
+const maxBuffer = 4 << 20
 
-	fmt.Println("Encrypting...")
+// encryptFile encrypts a file, accepts 3 arguments
+// src:  source file, dest: destination file, key: password for encryption
+func encryptFile(src, dest, key string) error {
 
 	//Generate a key of required length using the pbkd2 lib and the input
 	cipherKey := pbkdf2.Key([]byte(key), []byte(salt), 4096, 32, sha1.New)
@@ -27,26 +31,37 @@ func encryptFile(file, key string) {
 
 	// Define a new AES cipher with our generated key
 	block, err := aes.NewCipher(cipherKey)
-	HandleError(err, "cipher")
+	if err != nil {
+		return err
+	}
 
 	// Open input file to be encrypted
-	fin, err := os.Open(file)
-	HandleError(err, "open input file")
+	fin, err := os.Open(src)
 	defer fin.Close()
+	if err != nil {
+		return err
+	}
 	//Get input file size
-	size := FileSize(file)
+	size, err := FileSize(src)
+	if err != nil {
+		return err
+	}
 	// Open ouput file
-	fout, err := os.OpenFile(file+".aes", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	HandleError(err, "open output file")
+	fout, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	defer fout.Close()
+	if err != nil {
+		return err
+	}
 	// Write the IV at the start of the file
 	_, err = fout.Write(iv)
-	HandleError(err, "write to output")
+	if err != nil {
+		return err
+	}
 
 	// If file size is greater than 32KB, make a byte buffer of 32KB
 	// Otherwise, create a buffer of file size
 	var buf []byte
-	if size > (4 << 20) {
+	if size > maxBuffer {
 		buf = make([]byte, 32768)
 	} else {
 		buf = make([]byte, size)
@@ -56,10 +71,10 @@ func encryptFile(file, key string) {
 	for {
 		// Read data
 		res, err := fin.Read(buf)
-		// If there is any error, exit
 		if err != nil && err != io.EOF {
-			panic(err)
+			return err
 		}
+
 		// If end of file is reached or there is no data to be read, break
 		if res == 0 || err == io.EOF {
 			break
@@ -71,43 +86,55 @@ func encryptFile(file, key string) {
 		stream.XORKeyStream(cipherText, buf)
 		//Write the encrypted data to output file
 		_, err = fout.Write(cipherText)
-		HandleError(err, "writing cipher block")
+		if err != nil {
+			return err
+		}
 
 	}
 
-	fmt.Println("Done.")
+	return nil
 }
 
-// Function to decrypt a file
-func decryptFile(file, key string) {
-
-	fmt.Println("Decrypting...")
+// decryptFile decrypts a file, accepts 3 arguments
+// src:  source file, dest: destination file, key: password for encryption
+func decryptFile(src, dest, key string) error {
 
 	//Generate a key of required length using the pbkd2 lib and the input
 	cipherKey := pbkdf2.Key([]byte(key), []byte(salt), 4096, 32, sha1.New)
 	// Define a new AES cipher with our generated key
 	block, err := aes.NewCipher(cipherKey)
-	HandleError(err, "cipher")
+	if err != nil {
+		return err
+	}
 
 	// Open input file to be encrypted
-	fin, err := os.Open(file)
-	HandleError(err, "open input file")
+	fin, err := os.Open(src)
+	if err != nil {
+		return err
+	}
 	defer fin.Close()
 	//Get input file size
-	size := FileSize(file)
+	size, err := FileSize(src)
+	if err != nil {
+		return err
+	}
 	// Open ouput file
-	fout, err := os.OpenFile(file+".dec", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	HandleError(err, "open output file")
+	fout, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
 	defer fout.Close()
 
 	iv := make([]byte, aes.BlockSize)
 	_, err = fin.Read(iv)
-	HandleError(err, "reading iv")
+	if err != nil {
+		return err
+	}
 
 	// If file size is greater than 32KB, make a byte buffer of 32KB
 	// Otherwise, create a buffer of file size
 	var buf []byte
-	if size > (4 << 20) {
+	if size > maxBuffer {
 		buf = make([]byte, 32768)
 	} else {
 		buf = make([]byte, size)
@@ -116,10 +143,10 @@ func decryptFile(file, key string) {
 	for {
 		// Read data
 		res, err := fin.Read(buf)
-		// If there is any error, exit
 		if err != nil && err != io.EOF {
-			panic(err)
+			return err
 		}
+
 		// If end of file is reached or there is no data to be read, break
 		if res == 0 || err == io.EOF {
 			break
@@ -131,15 +158,21 @@ func decryptFile(file, key string) {
 		stream.XORKeyStream(cipherText, buf[:res])
 		//Write the decrypted data to output file
 		_, err = fout.Write(cipherText)
-		HandleError(err, "writing cipher block")
+		if err != nil {
+			return err
+		}
 
 	}
 
-	fmt.Println("Done.")
+	return nil
 }
 
 // Main function
 func main() {
+	// Init logger
+	log.SetFlags(0)
+	log.SetPrefix("Crypter: ")
+
 	// If there is no file name in the argument or if the argument is not a file
 	// Exit with message
 	if len(os.Args) < 2 {
@@ -150,20 +183,28 @@ func main() {
 		os.Exit(1)
 	}
 	// Get the file name
-	file := os.Args[1]
-	// Reader for options
-	reader := bufio.NewReader(os.Stdin)
+	src := os.Args[1]
 
+	var choice byte
 	fmt.Print("Encrypt(e) or Decrypt(d)? :")
-	choice, _ := reader.ReadString('\n')
+	fmt.Scanf("%c\n", &choice)
 
+	var key string
 	fmt.Print("Enter password : ")
-	key, _ := reader.ReadString('\n')
+	fmt.Scanf("%s\n", &key)
 
-	if choice[0] == 'e' {
-		encryptFile(file, key)
-	} else if choice[0] == 'd' {
-		decryptFile(file, key)
+	if choice == 'e' {
+		dest := src + ".enc"
+		err := encryptFile(src, dest, key)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if choice == 'd' {
+		dest := src + ".dec"
+		err := decryptFile(src, dest, key)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 }
