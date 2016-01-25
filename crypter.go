@@ -28,6 +28,9 @@ func encryptFile(src, dest, key string) error {
 	// Generate IV using rand lib
 	iv := make([]byte, aes.BlockSize)
 	_, err := rand.Read(iv)
+    if err != nil{
+        return err
+    }
 
 	// Define a new AES cipher with our generated key
 	block, err := aes.NewCipher(cipherKey)
