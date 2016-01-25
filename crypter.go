@@ -28,9 +28,9 @@ func encryptFile(src, dest, key string) error {
 	// Generate IV using rand lib
 	iv := make([]byte, aes.BlockSize)
 	_, err := rand.Read(iv)
-    if err != nil{
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
 	// Define a new AES cipher with our generated key
 	block, err := aes.NewCipher(cipherKey)
@@ -198,19 +198,19 @@ func main() {
 
 	if choice == 'e' {
 		dest := src + ".enc"
-        fmt.Println("Encrypting...")
+		fmt.Println("Encrypting...")
 		err := encryptFile(src, dest, key)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else if choice == 'd' {
 		dest := src + ".dec"
-        fmt.Println("Decrypting...")
+		fmt.Println("Decrypting...")
 		err := decryptFile(src, dest, key)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-    
-    fmt.Println("Done.")
+
+	fmt.Println("Done.")
 }
