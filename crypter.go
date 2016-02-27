@@ -1,10 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"runtime"
+	"sync"
 
 	"crypto/aes"
 	"crypto/cipher"
@@ -18,6 +21,12 @@ const salt = "qqH+KDE3J6VHw0oGO4ml50Wc3OEvF8 xIr_LPwEQlJ|c%zqknw1zTOmHHIbF"
 
 // maxBuffer , maximum amount of data read from a file once is 4MB
 const maxBuffer = 4 << 20
+
+// usage function to print usage on -help
+func usage() {
+	fmt.Println("crypter <file1> <file2> ...")
+	os.Exit(0)
+}
 
 // encryptFile : encrypts a file, accepts 3 arguments
 // src:  source file, dest: destination file, key: password for encryption
@@ -128,6 +137,7 @@ func decryptFile(src, dest, key string) error {
 	}
 	defer fout.Close()
 
+	//Get IV from the input file
 	iv := make([]byte, aes.BlockSize)
 	_, err = fin.Read(iv)
 	if err != nil {
@@ -176,18 +186,47 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("Crypter: ")
 
-	// If there is no file name in the argument or if the argument is not a file
-	// Exit with message
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: crypter <filename>")
-		os.Exit(1)
-	} else if !IsFile(os.Args[1]) {
-		fmt.Println("Usage: crypter <filename>")
-		os.Exit(1)
-	}
-	// Get the file name
-	src := os.Args[1]
+	// Commandline flag
+	flag.Usage = usage
+	flag.Parse()
 
+	// Maximum process to run based on cores
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	// Waitgroup for multiple process
+	var wg sync.WaitGroup
+
+	var files []string
+	invalids := 0
+
+	// If arguments are given, check if they are files and count invalid files
+	if len(flag.Args()) > 0 {
+		for _, filename := range flag.Args() {
+			if !IsFile(filename) {
+				fmt.Println(filename + " is not a valid file")
+				invalids = invalids + 1
+			} else {
+				files = append(files, filename)
+			}
+		}
+	} else {
+		log.Fatal("Please give atleast one file as input")
+	}
+
+	// If there are invalid files, handle them
+	if invalids == len(flag.Args()) {
+		log.Fatal("No valid files given")
+	} else if invalids > 0 {
+		var confirm byte
+		fmt.Println("Ignore invalid files and continue?(y/n) ")
+		fmt.Scanf("%c\n", &confirm)
+
+		if confirm != 'y' {
+			os.Exit(0)
+		}
+	}
+
+	// User input
 	var choice byte
 	fmt.Print("Encrypt(e) or Decrypt(d)? :")
 	fmt.Scanf("%c\n", &choice)
@@ -197,20 +236,39 @@ func main() {
 	fmt.Scanf("%s\n", &key)
 
 	if choice == 'e' {
-		dest := src + ".enc"
-		fmt.Println("Encrypting...")
-		err := encryptFile(src, dest, key)
-		if err != nil {
-			log.Fatal(err)
+		// Loop and call encryptFile for each file as goroutine
+		for _, fname := range files {
+			dest := fname + ".enc"
+			wg.Add(1)
+			go func(fname string) {
+				log.Print("Encrypting " + fname)
+				err := encryptFile(fname, dest, key)
+				if err != nil {
+					log.Print("Error encrypting", fname)
+				}
+				wg.Done()
+			}(fname)
 		}
+
 	} else if choice == 'd' {
-		dest := src + ".dec"
-		fmt.Println("Decrypting...")
-		err := decryptFile(src, dest, key)
-		if err != nil {
-			log.Fatal(err)
+		// Loop and call decryptFile for each file as goroutine
+		for _, fname := range files {
+			dest := fname + ".dec"
+			wg.Add(1)
+			go func(fname string) {
+				log.Print("Decrypting " + fname)
+				err := decryptFile(fname, dest, key)
+				if err != nil {
+					log.Print("Error decrypting", fname)
+				}
+				wg.Done()
+			}(fname)
 		}
+	} else {
+		log.Fatal("Please enter a valid choice")
 	}
 
+	// Wait till every goroutine has finished
+	wg.Wait()
 	fmt.Println("Done.")
 }
